@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>As The Hydra</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        overflow: hidden;
+        background: #000;
+        font-family: Georgia, "Times New Roman", serif;
+      }
+
+      #tree-canvas {
+        display: block;
+        width: 100vw;
+        height: 80vh;
+        background: #fff;
+        cursor: crosshair;
+      }
+
+      #poem-strip {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        width: 100%;
+        height: 20vh;
+        background: #fff;
+        overflow-x: auto;
+        overflow-y: hidden;
+        white-space: nowrap;
+        display: flex;
+        align-items: center;
+        gap: 2px;
+        padding: 0 24px;
+        scrollbar-width: thin;
+        scrollbar-color: #ccc #fff;
+        scroll-behavior: smooth;
+        border-top: 1px solid #e0e0e0;
+      }
+
+      #poem-strip::-webkit-scrollbar {
+        height: 4px;
+      }
+
+      #poem-strip::-webkit-scrollbar-track {
+        background: #fff;
+      }
+
+      #poem-strip::-webkit-scrollbar-thumb {
+        background: #ccc;
+      }
+
+      .poem-rect {
+        flex-shrink: 0;
+        min-width: 200px;
+        max-width: 320px;
+        padding: 16px 24px;
+        border: 1px solid #ccc;
+        cursor: pointer;
+        transition:
+          border-color 0.3s,
+          opacity 0.3s;
+        opacity: 0.5;
+      }
+
+      .poem-rect.active {
+        border-color: #000;
+        opacity: 1;
+      }
+
+      .poem-rect:hover {
+        border-color: #555;
+      }
+
+      .poem-text {
+        color: #000;
+        font-family: Georgia, "Times New Roman", serif;
+        font-size: 14px;
+        font-style: italic;
+        white-space: normal;
+        line-height: 1.5;
+      }
+
+      #time-travel-indicator {
+        position: fixed;
+        top: 12px;
+        right: 16px;
+        color: #888;
+        font-family: Georgia, serif;
+        font-size: 12px;
+        font-style: italic;
+        opacity: 0;
+        transition: opacity 0.4s;
+        pointer-events: none;
+      }
+
+      #time-travel-indicator.visible {
+        opacity: 1;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="tree-canvas"></canvas>
+    <div id="poem-strip"></div>
+    <div id="time-travel-indicator">viewing memory</div>
+    <script src="tree.js"></script>
+  </body>
+</html>
