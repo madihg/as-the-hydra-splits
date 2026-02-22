@@ -13,7 +13,8 @@ const GREY_LEVELS = [
   "#E8E8E8", // 5: barely visible
 ];
 
-const MAX_GREY_DEPTH = 4;
+const MAX_GREY_DEPTH = 3;
+const MAX_NODE_COUNT = 1500;
 const BRANCH_LEN_MIN = 50;
 const BRANCH_LEN_MAX = 100;
 const GREY_BRANCH_LEN_MIN = 30;
@@ -222,6 +223,8 @@ function deprecateGreys() {
 }
 
 function spawnGreyChildren(step, canvasW, canvasH) {
+  if (tree.nodes.size >= MAX_NODE_COUNT) return;
+
   const leaves = [];
   for (const [, n] of tree.nodes) {
     if (n.childIds.length === 0 && !n.isFrontier && n.state !== "frontier") {
@@ -232,6 +235,7 @@ function spawnGreyChildren(step, canvasW, canvasH) {
   }
 
   for (const leaf of leaves) {
+    if (tree.nodes.size >= MAX_NODE_COUNT) break;
     for (let i = 0; i < 2; i++) {
       const pos = safeRandomBranch(
         leaf,
@@ -434,7 +438,6 @@ function render(timestamp) {
 // --- Poem Strip ---
 
 const poemStrip = document.getElementById("poem-strip");
-const timeTravelIndicator = document.getElementById("time-travel-indicator");
 
 function addPoemRect(line, step) {
   const rect = document.createElement("div");
@@ -473,7 +476,6 @@ function scrollToStep(step) {
 
   const isCurrentStep = step === tree.currentStep;
   interactionState = isCurrentStep ? "INTERACTIVE" : "TIME_TRAVEL";
-  timeTravelIndicator.classList.toggle("visible", !isCurrentStep);
 
   // Change cursor
   canvas.style.cursor = isCurrentStep ? "crosshair" : "default";
@@ -504,9 +506,10 @@ function findFrontierAt(x, y) {
 
 function findGreyEdgeAt(x, y) {
   let closest = null;
-  let closestDist = EDGE_HIT_RADIUS;
+  let closestDist = 5; // tight radius — only direct hits on visible edges
   for (const edge of tree.edges) {
     if (edge.state === "solid-chosen") continue;
+    if (edge.greyLevel > 2) continue; // ignore faded edges
     const from = tree.nodes.get(edge.fromId);
     const to = tree.nodes.get(edge.toId);
     if (!from || !to) continue;

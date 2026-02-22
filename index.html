@@ -87,29 +87,11 @@
         white-space: normal;
         line-height: 1.5;
       }
-
-      #time-travel-indicator {
-        position: fixed;
-        top: 12px;
-        right: 16px;
-        color: #888;
-        font-family: Georgia, serif;
-        font-size: 12px;
-        font-style: italic;
-        opacity: 0;
-        transition: opacity 0.4s;
-        pointer-events: none;
-      }
-
-      #time-travel-indicator.visible {
-        opacity: 1;
-      }
     </style>
   </head>
   <body>
     <canvas id="tree-canvas"></canvas>
     <div id="poem-strip"></div>
-    <div id="time-travel-indicator">viewing memory</div>
     <script src="tree.js"></script>
   </body>
 </html>
