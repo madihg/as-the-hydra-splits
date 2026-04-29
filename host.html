@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>as the hydra - host</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=VT323&family=Space+Grotesk:wght@300..700&family=JetBrains+Mono:wght@200..700&display=block"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="shared/design.css" />
+
+    <style>
+      html,
+      body {
+        height: 100%;
+        overflow: hidden;
+      }
+
+      .host {
+        display: grid;
+        grid-template-columns: minmax(360px, 38vw) 1fr;
+        grid-template-rows: auto 1fr;
+        height: 100vh;
+        max-height: 100vh;
+      }
+
+      .doc-head {
+        grid-column: 1 / -1;
+        border-bottom: 4px solid var(--border);
+        padding: var(--s-5) var(--s-6) var(--s-4);
+        display: grid;
+        grid-template-columns: 1fr auto;
+        align-items: end;
+        gap: var(--s-6);
+      }
+      .doc-head .wordmark {
+        font-family: var(--font-display);
+        font-size: clamp(2.4rem, 5vw, 4.2rem);
+        line-height: 0.9;
+        letter-spacing: -0.01em;
+        margin: 0;
+      }
+      .doc-head .meta {
+        font-family: var(--font-mono);
+        font-size: 0.78rem;
+        color: var(--text-tertiary);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        text-align: right;
+        line-height: 1.6;
+      }
+      .doc-head .meta b {
+        color: var(--text-primary);
+        font-weight: 700;
+      }
+
+      .lines {
+        border-right: 1px solid var(--border-light);
+        padding: var(--s-6);
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 0;
+      }
+      .lines-empty {
+        font-family: var(--font-mono);
+        font-size: 0.85rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--text-tertiary);
+        padding: var(--s-5) 0;
+      }
+      .line-item {
+        border-top: 1px solid var(--border-light);
+        padding: var(--s-5) 0;
+        animation: line-in 600ms ease both;
+      }
+      .line-item:first-child {
+        border-top: 0;
+      }
+      .line-item .text {
+        font-family: var(--font-body);
+        font-size: clamp(1rem, 1.4vw, 1.25rem);
+        line-height: 1.45;
+        color: var(--text-primary);
+        white-space: pre-line;
+        margin: 0 0 var(--s-3);
+      }
+      .line-item .direction {
+        font-family: var(--font-mono);
+        font-size: 0.78rem;
+        font-style: italic;
+        color: var(--text-tertiary);
+        line-height: 1.5;
+      }
+      .line-item .voice {
+        font-family: var(--font-mono);
+        font-size: 0.7rem;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--text-hint);
+        margin-bottom: var(--s-2);
+      }
+      @keyframes line-in {
+        from {
+          opacity: 0;
+        }
+        to {
+          opacity: 1;
+        }
+      }
+
+      .tree-pane {
+        position: relative;
+        overflow: hidden;
+      }
+      #tree-canvas {
+        display: block;
+        width: 100%;
+        height: 100%;
+      }
+
+      .qr-pocket {
+        position: absolute;
+        top: var(--s-5);
+        right: var(--s-5);
+        background: #fff;
+        border: 1px solid var(--border-light);
+        padding: var(--s-3);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: var(--s-3);
+        transition: opacity 1.5s ease;
+      }
+      .qr-pocket.hidden {
+        opacity: 0;
+        pointer-events: none;
+      }
+      .qr-pocket #qr {
+        width: 168px;
+        height: 168px;
+      }
+      .qr-pocket .caption {
+        font-family: var(--font-mono);
+        font-size: 0.72rem;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--text-secondary);
+        text-align: center;
+      }
+
+      .closing {
+        position: absolute;
+        bottom: var(--s-6);
+        left: 50%;
+        transform: translateX(-50%);
+        font-family: var(--font-display);
+        font-size: clamp(1.6rem, 3vw, 2.4rem);
+        color: var(--text-primary);
+        opacity: 0;
+        transition: opacity 2s ease;
+        white-space: nowrap;
+      }
+      .closing.visible {
+        opacity: 0.85;
+      }
+
+      .idle-card {
+        position: absolute;
+        top: var(--s-5);
+        right: var(--s-5);
+        background: #fff;
+        border: 1px solid var(--border-light);
+        padding: var(--s-4) var(--s-5);
+        font-family: var(--font-mono);
+        font-size: 0.78rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--text-secondary);
+        max-width: 220px;
+        line-height: 1.5;
+      }
+      .idle-card a {
+        color: var(--text-primary);
+      }
+    </style>
+  </head>
+  <body>
+    <main class="host">
+      <header class="doc-head">
+        <h1 class="wordmark">as the hydra</h1>
+        <div class="meta">
+          <span id="meta-status">no session</span><br />
+          <b id="meta-progress">voices &middot; 0 / 12</b><br />
+          <span id="meta-stamp"></span>
+        </div>
+      </header>
+
+      <aside class="lines" id="lines-col">
+        <div class="lines-empty" id="lines-empty">
+          waiting for the first voice
+        </div>
+      </aside>
+
+      <section class="tree-pane">
+        <canvas id="tree-canvas"></canvas>
+
+        <div class="qr-pocket hidden" id="qr-pocket">
+          <div id="qr"></div>
+          <div class="caption">
+            scan to read &middot; <span id="qr-remaining">12</span>&nbsp;left
+          </div>
+        </div>
+
+        <div class="idle-card" id="idle-card" style="display: none">
+          no session in progress.<br />
+          open <a href="admin.html">/admin</a> to begin.
+        </div>
+
+        <div class="closing" id="closing">here the hydra splits</div>
+      </section>
+    </main>
+
+    <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+    <script type="module" src="host.js"></script>
+  </body>
+</html>

@@ -1,871 +1,332 @@
-// ============================================================
-// As The Hydra — Interactive branching tree
-// ============================================================
+// as the hydra - branching tree (split-driven)
+// public api: new Tree(canvas).init() then tree.splitOnce() per realtime event.
 
-// --- Constants ---
+export const TREE_CONFIG = {
+  rootRadius: 6,
+  pulseAlphaMin: 0.4,
+  pulseAlphaMax: 0.85,
+  pulsePeriodMs: 3000,
 
-const GREY_LEVELS = [
-  "#000000", // 0: chosen path
-  "#555555", // 1: just unchosen
-  "#888888", // 2: medium
-  "#AAAAAA", // 3: light
-  "#CCCCCC", // 4: very light
-  "#E8E8E8", // 5: barely visible
-];
+  // each split bifurcates into 2 or 3 branches (weighted)
+  branchCountWeights: { 2: 0.7, 3: 0.3 },
 
-const MAX_GREY_DEPTH = 3;
-const MAX_NODE_COUNT = 1500;
-const BRANCH_LEN_MIN = 50;
-const BRANCH_LEN_MAX = 100;
-const GREY_BRANCH_LEN_MIN = 30;
-const GREY_BRANCH_LEN_MAX = 60;
-const FRONTIER_HIT_RADIUS = 18;
-const EDGE_HIT_RADIUS = 10;
-const CLICK_DEBOUNCE_MS = 200;
-const MIN_FIRST_CLICK_DIST = 40;
-const NODE_MIN_DISTANCE = 15;
-const CANVAS_PADDING = 20;
+  branchLenMin: 70,
+  branchLenMax: 130,
+  branchAngleSpread: Math.PI * 0.6,
 
-// --- Poem Lines ---
+  growthDurationMs: 1500,
+  growthEase: (t) => 1 - Math.pow(1 - t, 3), // ease-out cubic
 
-let poemLines = [
-  "The graying lines of longing",
-  "The branches othered",
-  "deprecating futures",
-  "Composting futures",
-  "Wilting once",
-  "Fell from the hand of possibility",
-  "All here crammed into heaven",
-  "Larking home",
-  "Cosplay of the sedentary type",
-  "Lineage of eccentrics",
-  "Desire foregone",
-  "The roots muttering",
-  "Distance from catastrophe",
-  "In a recent retrospective in Berlin, a video of Joseph Beuys drives home the importance of warmth when incubating the future",
-  "Heartbreak, the nomadic art form par excellence",
-  "How will *you* be reborn? Yenna to Philippa, The witcher",
-];
-let poemShuffled = [];
-let poemIndex = 0;
+  greyLevels: [
+    "rgba(0,0,0,1)",
+    "rgba(0,0,0,0.55)",
+    "rgba(0,0,0,0.35)",
+    "rgba(0,0,0,0.22)",
+    "rgba(0,0,0,0.13)",
+    "rgba(0,0,0,0.08)",
+  ],
 
-function loadPoem() {
-  shufflePoem();
-}
-
-function shufflePoem() {
-  poemShuffled = [...poemLines];
-  for (let i = poemShuffled.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [poemShuffled[i], poemShuffled[j]] = [poemShuffled[j], poemShuffled[i]];
-  }
-  poemIndex = 0;
-}
-
-function nextPoemLine() {
-  if (poemIndex >= poemShuffled.length) shufflePoem();
-  return poemShuffled[poemIndex++];
-}
-
-// --- Data Model ---
-
-let nextNodeId = 0;
-
-function createNode(x, y, parentId, creationStep, state) {
-  return {
-    id: nextNodeId++,
-    x,
-    y,
-    parentId,
-    childIds: [],
-    state: state || "frontier",
-    creationStep,
-    greyLevel: 0,
-    isFrontier: false,
-    glowing: false,
-  };
-}
-
-function createEdge(fromId, toId, creationStep, lineStyle) {
-  return {
-    fromId,
-    toId,
-    state: "dotted",
-    creationStep,
-    greyLevel: 0,
-    lineStyle: lineStyle || "dotted",
-  };
-}
-
-// --- Tree State ---
-
-const tree = {
-  nodes: new Map(),
-  edges: [],
-  currentStep: 0,
-  snapshots: [],
-  frontierIds: new Set(),
-  chosenPath: [],
-  rootId: null,
-  activeNodeId: null,
+  canvasPadding: 40,
+  nodeMinDistance: 20,
+  maxBranchPlacementAttempts: 12,
 };
 
-function addNode(node) {
-  tree.nodes.set(node.id, node);
-  if (node.parentId !== null) {
-    const parent = tree.nodes.get(node.parentId);
-    if (parent) parent.childIds.push(node.id);
+let _nextId = 0;
+const newId = () => _nextId++;
+
+export class Tree {
+  constructor(canvas, opts = {}) {
+    this.canvas = canvas;
+    this.ctx = canvas.getContext("2d");
+    this.cfg = { ...TREE_CONFIG, ...opts };
+
+    this.nodes = new Map();
+    this.edges = []; // { fromId, toId, bornAt, isChosen, greyLevel }
+    this.activeLeafId = null;
+    this.rootId = null;
+    this.splitsApplied = 0;
+
+    this.reducedMotion =
+      window.matchMedia &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   }
-  return node;
-}
 
-function addEdge(edge) {
-  tree.edges.push(edge);
-  return edge;
-}
+  init() {
+    this._resize();
+    window.addEventListener("resize", () => this._resize());
 
-function takeSnapshot(poemLine) {
-  const clonedNodes = new Map();
-  for (const [id, n] of tree.nodes) {
-    clonedNodes.set(id, { ...n, childIds: [...n.childIds] });
+    const { width, height } = this._cssSize();
+    const root = this._mkNode(width / 2, height / 2, null, true);
+    root.isRoot = true;
+    this.nodes.set(root.id, root);
+    this.rootId = root.id;
+    this.activeLeafId = root.id;
+
+    requestAnimationFrame((t) => this._render(t));
   }
-  const clonedEdges = tree.edges.map((e) => ({ ...e }));
-  tree.snapshots.push({
-    step: tree.currentStep,
-    nodes: clonedNodes,
-    edges: clonedEdges,
-    poemLine,
-  });
-}
 
-// --- Geometry ---
-
-function dist(x1, y1, x2, y2) {
-  return Math.sqrt((x1 - x2) ** 2 + (y1 - y2) ** 2);
-}
-
-function clampToCanvas(x, y, w, h) {
-  return {
-    x: Math.max(CANVAS_PADDING, Math.min(w - CANVAS_PADDING, x)),
-    y: Math.max(CANVAS_PADDING, Math.min(h - CANVAS_PADDING, y)),
-  };
-}
-
-function randomBranchPosition(origin, minLen, maxLen, canvasW, canvasH) {
-  const angle = Math.random() * Math.PI * 2;
-  const length = minLen + Math.random() * (maxLen - minLen);
-  let x = origin.x + Math.cos(angle) * length;
-  let y = origin.y + Math.sin(angle) * length;
-  const clamped = clampToCanvas(x, y, canvasW, canvasH);
-  return clamped;
-}
-
-function computeMirror(origin, target) {
-  const dx = target.x - origin.x;
-  const dy = target.y - origin.y;
-  return { x: origin.x - dx, y: origin.y + dy };
-}
-
-function hasOverlap(x, y, minDist) {
-  for (const [, n] of tree.nodes) {
-    if (dist(x, y, n.x, n.y) < minDist) return true;
+  _resize() {
+    const dpr = window.devicePixelRatio || 1;
+    const rect = this.canvas.getBoundingClientRect();
+    this.canvas.width = rect.width * dpr;
+    this.canvas.height = rect.height * dpr;
+    this.canvas.style.width = rect.width + "px";
+    this.canvas.style.height = rect.height + "px";
+    this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   }
-  return false;
-}
-
-function safeRandomBranch(origin, minLen, maxLen, canvasW, canvasH) {
-  for (let attempt = 0; attempt < 5; attempt++) {
-    const pos = randomBranchPosition(origin, minLen, maxLen, canvasW, canvasH);
-    if (!hasOverlap(pos.x, pos.y, NODE_MIN_DISTANCE)) return pos;
+  _cssSize() {
+    return {
+      width: parseFloat(this.canvas.style.width) || this.canvas.width,
+      height: parseFloat(this.canvas.style.height) || this.canvas.height,
+    };
   }
-  return randomBranchPosition(origin, minLen, maxLen, canvasW, canvasH);
-}
 
-function pointToSegmentDist(px, py, ax, ay, bx, by) {
-  const dx = bx - ax,
-    dy = by - ay;
-  const lenSq = dx * dx + dy * dy;
-  if (lenSq === 0) return dist(px, py, ax, ay);
-  let t = ((px - ax) * dx + (py - ay) * dy) / lenSq;
-  t = Math.max(0, Math.min(1, t));
-  return dist(px, py, ax + t * dx, ay + t * dy);
-}
-
-// --- Grey Deprecation ---
-
-function getGreyDepth(node) {
-  let depth = 0;
-  let current = node;
-  while (current.state === "grey-child" || current.state === "unchosen") {
-    depth++;
-    if (current.parentId === null) break;
-    current = tree.nodes.get(current.parentId);
-    if (!current) break;
+  _mkNode(x, y, parentId, isChosen) {
+    return {
+      id: newId(),
+      x,
+      y,
+      parentId,
+      bornAt: performance.now(),
+      isChosen: !!isChosen,
+      isRoot: false,
+      greyLevel: 0,
+    };
   }
-  return depth;
-}
 
-function deprecateGreys() {
-  for (const edge of tree.edges) {
-    if (edge.state !== "solid-chosen") {
-      edge.greyLevel = Math.min(edge.greyLevel + 1, 5);
+  // --- public ---
+
+  reset() {
+    this.nodes.clear();
+    this.edges = [];
+    this.activeLeafId = null;
+    this.rootId = null;
+    this.splitsApplied = 0;
+
+    const { width, height } = this._cssSize();
+    const root = this._mkNode(width / 2, height / 2, null, true);
+    root.isRoot = true;
+    this.nodes.set(root.id, root);
+    this.rootId = root.id;
+    this.activeLeafId = root.id;
+  }
+
+  // call once per realtime split event. lineId is opaque, used as data.
+  splitOnce(lineId) {
+    if (!this.activeLeafId) return;
+    const parent = this.nodes.get(this.activeLeafId);
+    if (!parent) return;
+
+    const branchCount = this._weightedPick(this.cfg.branchCountWeights);
+    const positions = this._planBranches(parent, branchCount);
+
+    if (positions.length === 0) return;
+
+    // step the previously-chosen frontier up one grey level
+    for (const [, n] of this.nodes) {
+      if (!n.isChosen && !n.isRoot) {
+        n.greyLevel = Math.min(n.greyLevel + 1, 5);
+      }
     }
+    for (const e of this.edges) {
+      if (!e.isChosen) e.greyLevel = Math.min(e.greyLevel + 1, 5);
+    }
+
+    // root loses its primacy after first split
+    if (parent.isRoot) {
+      parent.isChosen = true;
+    }
+
+    const chosenIdx = Math.floor(Math.random() * positions.length);
+    let newActiveId = null;
+
+    for (let i = 0; i < positions.length; i++) {
+      const pos = positions[i];
+      const isChosen = i === chosenIdx;
+      const child = this._mkNode(pos.x, pos.y, parent.id, isChosen);
+      child.greyLevel = isChosen ? 0 : 1;
+      child.lineId = isChosen ? lineId : null;
+      this.nodes.set(child.id, child);
+      this.edges.push({
+        fromId: parent.id,
+        toId: child.id,
+        bornAt: performance.now(),
+        isChosen,
+        greyLevel: isChosen ? 0 : 1,
+      });
+      if (isChosen) newActiveId = child.id;
+    }
+
+    this.activeLeafId = newActiveId;
+    this.splitsApplied++;
   }
-  for (const [, node] of tree.nodes) {
+
+  _weightedPick(weights) {
+    const entries = Object.entries(weights);
+    const total = entries.reduce((s, [, w]) => s + w, 0);
+    let r = Math.random() * total;
+    for (const [k, w] of entries) {
+      r -= w;
+      if (r <= 0) return parseInt(k);
+    }
+    return parseInt(entries[entries.length - 1][0]);
+  }
+
+  _planBranches(parent, count) {
+    const { width, height } = this._cssSize();
+    const pad = this.cfg.canvasPadding;
+    const minLen = this.cfg.branchLenMin;
+    const maxLen = this.cfg.branchLenMax;
+
+    // base direction = away from parent's parent (or random if root)
+    let baseAngle = Math.random() * Math.PI * 2;
+    if (parent.parentId !== null) {
+      const grand = this.nodes.get(parent.parentId);
+      if (grand) baseAngle = Math.atan2(parent.y - grand.y, parent.x - grand.x);
+    }
+
+    const spread = this.cfg.branchAngleSpread;
+    const positions = [];
+
+    for (let i = 0; i < count; i++) {
+      const slot = count === 1 ? 0 : i / (count - 1) - 0.5;
+      const targetAngle = baseAngle + slot * spread;
+
+      let placed = null;
+      for (
+        let attempt = 0;
+        attempt < this.cfg.maxBranchPlacementAttempts;
+        attempt++
+      ) {
+        const jitter = (Math.random() - 0.5) * 0.4;
+        const angle = targetAngle + jitter;
+        const length = minLen + Math.random() * (maxLen - minLen);
+        const x = parent.x + Math.cos(angle) * length;
+        const y = parent.y + Math.sin(angle) * length;
+
+        if (x < pad || x > width - pad || y < pad || y > height - pad) {
+          continue;
+        }
+
+        let overlap = false;
+        for (const [, n] of this.nodes) {
+          const dx = n.x - x;
+          const dy = n.y - y;
+          if (dx * dx + dy * dy < this.cfg.nodeMinDistance ** 2) {
+            overlap = true;
+            break;
+          }
+        }
+        if (!overlap) {
+          placed = { x, y };
+          break;
+        }
+      }
+
+      if (!placed) {
+        // last-resort: place at edge of canvas in target direction
+        const length = (minLen + maxLen) / 2;
+        let x = parent.x + Math.cos(targetAngle) * length;
+        let y = parent.y + Math.sin(targetAngle) * length;
+        x = Math.max(pad, Math.min(width - pad, x));
+        y = Math.max(pad, Math.min(height - pad, y));
+        placed = { x, y };
+      }
+
+      positions.push(placed);
+    }
+
+    return positions;
+  }
+
+  // --- render ---
+
+  _render(timestamp) {
+    const { width, height } = this._cssSize();
+    this.ctx.clearRect(0, 0, width, height);
+
+    // draw grey edges first, then chosen
+    for (const e of this.edges) {
+      if (!e.isChosen) this._drawEdge(e, timestamp);
+    }
+    for (const e of this.edges) {
+      if (e.isChosen) this._drawEdge(e, timestamp);
+    }
+
+    // draw nodes
+    for (const [, n] of this.nodes) {
+      if (!n.isChosen && !n.isRoot) this._drawNode(n, timestamp);
+    }
+    for (const [, n] of this.nodes) {
+      if (n.isChosen || n.isRoot) this._drawNode(n, timestamp);
+    }
+
+    requestAnimationFrame((t) => this._render(t));
+  }
+
+  _drawEdge(edge, timestamp) {
+    const from = this.nodes.get(edge.fromId);
+    const to = this.nodes.get(edge.toId);
+    if (!from || !to) return;
+
+    const elapsed = timestamp - edge.bornAt;
+    let t = 1;
+    if (elapsed < this.cfg.growthDurationMs) {
+      const raw = elapsed / this.cfg.growthDurationMs;
+      t = this.reducedMotion ? 1 : this.cfg.growthEase(raw);
+    }
+
+    const x = from.x + (to.x - from.x) * t;
+    const y = from.y + (to.y - from.y) * t;
+
+    this.ctx.save();
+    this.ctx.strokeStyle =
+      this.cfg.greyLevels[edge.greyLevel] || this.cfg.greyLevels[5];
+    this.ctx.lineWidth = edge.isChosen ? 2 : 1.2;
+    this.ctx.lineCap = "round";
+    this.ctx.beginPath();
+    this.ctx.moveTo(from.x, from.y);
+    this.ctx.lineTo(x, y);
+    this.ctx.stroke();
+    this.ctx.restore();
+  }
+
+  _drawNode(node, timestamp) {
+    const elapsed = timestamp - node.bornAt;
+    let appear = 1;
+    if (elapsed < this.cfg.growthDurationMs) {
+      appear = this.reducedMotion
+        ? 1
+        : this.cfg.growthEase(elapsed / this.cfg.growthDurationMs);
+    }
+
+    let radius = node.isRoot
+      ? this.cfg.rootRadius
+      : node.id === this.activeLeafId
+        ? 5
+        : 3.5;
+    radius *= appear;
+
+    let color = this.cfg.greyLevels[node.greyLevel] || this.cfg.greyLevels[5];
+
+    // pulsing root or active leaf when nothing has happened yet
     if (
-      node.state !== "chosen" &&
-      node.state !== "frontier" &&
-      node.state !== "root"
+      (node.isRoot && this.splitsApplied === 0) ||
+      (node.id === this.activeLeafId && this.edges.length === 0)
     ) {
-      node.greyLevel = Math.min(node.greyLevel + 1, 5);
-    }
-  }
-}
-
-function spawnGreyChildren(step, canvasW, canvasH) {
-  if (tree.nodes.size >= MAX_NODE_COUNT) return;
-
-  const leaves = [];
-  for (const [, n] of tree.nodes) {
-    if (n.childIds.length === 0 && !n.isFrontier && n.state !== "frontier") {
-      if (getGreyDepth(n) < MAX_GREY_DEPTH) {
-        leaves.push(n);
-      }
-    }
-  }
-
-  for (const leaf of leaves) {
-    if (tree.nodes.size >= MAX_NODE_COUNT) break;
-    for (let i = 0; i < 2; i++) {
-      const pos = safeRandomBranch(
-        leaf,
-        GREY_BRANCH_LEN_MIN,
-        GREY_BRANCH_LEN_MAX,
-        canvasW,
-        canvasH,
-      );
-      const child = createNode(pos.x, pos.y, leaf.id, step, "grey-child");
-      child.greyLevel = 1;
-      addNode(child);
-      const edge = createEdge(leaf.id, child.id, step, "dotted");
-      edge.state = "grey";
-      edge.greyLevel = 1;
-      addEdge(edge);
-    }
-  }
-}
-
-// --- Shudder Animation ---
-
-const shudders = [];
-
-function triggerShudder(edge) {
-  shudders.push({ edge, startTime: performance.now(), duration: 400 });
-}
-
-function getShudderOffset(shudder, timestamp) {
-  const elapsed = timestamp - shudder.startTime;
-  if (elapsed > shudder.duration) return null;
-  const progress = elapsed / shudder.duration;
-  const decay = 1 - progress;
-  return Math.sin(elapsed * 0.05) * 4 * decay;
-}
-
-// --- Renderer ---
-
-const canvas = document.getElementById("tree-canvas");
-const ctx = canvas.getContext("2d");
-
-function resizeCanvas() {
-  const dpr = window.devicePixelRatio || 1;
-  canvas.width = window.innerWidth * dpr;
-  canvas.height = window.innerHeight * 0.8 * dpr;
-  canvas.style.width = window.innerWidth + "px";
-  canvas.style.height = window.innerHeight * 0.8 + "px";
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-}
-
-function drawEdge(edge, nodesMap, timestamp) {
-  const from = nodesMap.get(edge.fromId);
-  const to = nodesMap.get(edge.toId);
-  if (!from || !to) return;
-
-  const color =
-    edge.state === "solid-chosen"
-      ? "#000"
-      : GREY_LEVELS[edge.greyLevel] || GREY_LEVELS[5];
-  const width = edge.state === "solid-chosen" ? 2.5 : 1.5;
-
-  ctx.save();
-  ctx.strokeStyle = color;
-  ctx.lineWidth = width;
-
-  if (edge.lineStyle === "dotted") {
-    ctx.setLineDash([3, 5]);
-  } else {
-    ctx.setLineDash([]);
-  }
-
-  let fromX = from.x,
-    fromY = from.y,
-    toX = to.x,
-    toY = to.y;
-
-  // Apply shudder if active
-  const activeShudder = shudders.find((s) => s.edge === edge);
-  if (activeShudder) {
-    const offset = getShudderOffset(activeShudder, timestamp);
-    if (offset !== null) {
-      const dx = toX - fromX;
-      const dy = toY - fromY;
-      const len = Math.sqrt(dx * dx + dy * dy) || 1;
-      const nx = -dy / len;
-      const ny = dx / len;
-      // Offset midpoint
-      const midX = (fromX + toX) / 2 + nx * offset;
-      const midY = (fromY + toY) / 2 + ny * offset;
-      ctx.beginPath();
-      ctx.moveTo(fromX, fromY);
-      ctx.quadraticCurveTo(midX, midY, toX, toY);
-      ctx.stroke();
-      ctx.restore();
-      return;
-    }
-  }
-
-  ctx.beginPath();
-  ctx.moveTo(fromX, fromY);
-  ctx.lineTo(toX, toY);
-  ctx.stroke();
-  ctx.restore();
-}
-
-function drawNode(node, timestamp) {
-  const color = GREY_LEVELS[node.greyLevel] || GREY_LEVELS[5];
-  let radius = 3;
-  if (node.state === "chosen" || node.state === "root") radius = 4;
-  if (node.isFrontier || node.state === "frontier") radius = 5;
-  if (node.id === tree.activeNodeId) radius = 6;
-
-  if (node.glowing) {
-    drawGlow(node.x, node.y, radius, timestamp);
-  }
-
-  ctx.fillStyle = color;
-  ctx.beginPath();
-  ctx.arc(node.x, node.y, radius, 0, Math.PI * 2);
-  ctx.fill();
-}
-
-function drawGlow(x, y, baseRadius, timestamp) {
-  const phase = (Math.sin(timestamp * 0.003) + 1) / 2;
-  const glowRadius = baseRadius + 6 + 4 * phase;
-  const alpha = 0.1 + 0.12 * phase;
-
-  const grad = ctx.createRadialGradient(x, y, baseRadius, x, y, glowRadius);
-  grad.addColorStop(0, `rgba(0, 0, 0, ${alpha})`);
-  grad.addColorStop(1, "rgba(0, 0, 0, 0)");
-  ctx.fillStyle = grad;
-  ctx.beginPath();
-  ctx.arc(x, y, glowRadius, 0, Math.PI * 2);
-  ctx.fill();
-}
-
-function drawFromData(nodesMap, edgesArr, timestamp) {
-  const w = canvas.style.width
-    ? parseInt(canvas.style.width)
-    : window.innerWidth;
-  const h = canvas.style.height
-    ? parseInt(canvas.style.height)
-    : window.innerHeight * 0.8;
-
-  ctx.clearRect(0, 0, w, h);
-
-  // Draw edges: grey first, then chosen
-  for (const edge of edgesArr) {
-    if (edge.state !== "solid-chosen") {
-      drawEdge(edge, nodesMap, timestamp);
-    }
-  }
-  for (const edge of edgesArr) {
-    if (edge.state === "solid-chosen") {
-      drawEdge(edge, nodesMap, timestamp);
-    }
-  }
-
-  // Draw nodes: grey first, then chosen/frontier
-  const greyNodes = [];
-  const chosenNodes = [];
-  const frontierNodes = [];
-
-  for (const [, node] of nodesMap) {
-    if (node.isFrontier || node.state === "frontier") {
-      frontierNodes.push(node);
-    } else if (node.state === "chosen" || node.state === "root") {
-      chosenNodes.push(node);
-    } else {
-      greyNodes.push(node);
-    }
-  }
-
-  for (const n of greyNodes) drawNode(n, timestamp);
-  for (const n of chosenNodes) drawNode(n, timestamp);
-  for (const n of frontierNodes) drawNode(n, timestamp);
-}
-
-// --- Animation Loop ---
-
-let viewingStep = -1; // -1 means current
-
-function render(timestamp) {
-  // Clean up expired shudders
-  for (let i = shudders.length - 1; i >= 0; i--) {
-    if (timestamp - shudders[i].startTime > shudders[i].duration) {
-      shudders.splice(i, 1);
-    }
-  }
-
-  if (viewingStep >= 0 && viewingStep < tree.snapshots.length) {
-    const snap = tree.snapshots[viewingStep];
-    drawFromData(snap.nodes, snap.edges, timestamp);
-  } else {
-    drawFromData(tree.nodes, tree.edges, timestamp);
-  }
-
-  requestAnimationFrame(render);
-}
-
-// --- Poem Strip ---
-
-const poemStrip = document.getElementById("poem-strip");
-
-function addPoemRect(line, step) {
-  const rect = document.createElement("div");
-  rect.className = "poem-rect";
-  rect.dataset.step = step;
-  rect.innerHTML = `<span class="poem-text">${escapeHtml(line)}</span>`;
-
-  rect.addEventListener("click", () => {
-    scrollToStep(step);
-  });
-
-  poemStrip.appendChild(rect);
-
-  // Auto-scroll to newest
-  requestAnimationFrame(() => {
-    rect.scrollIntoView({
-      behavior: "smooth",
-      inline: "center",
-      block: "nearest",
-    });
-  });
-
-  updateActivePoemRect(step);
-}
-
-function updateActivePoemRect(activeStep) {
-  const rects = poemStrip.querySelectorAll(".poem-rect");
-  rects.forEach((r) => {
-    r.classList.toggle("active", parseInt(r.dataset.step) === activeStep);
-  });
-}
-
-function scrollToStep(step) {
-  viewingStep = step;
-  updateActivePoemRect(step);
-
-  const isCurrentStep = step === tree.currentStep;
-  interactionState = isCurrentStep ? "INTERACTIVE" : "TIME_TRAVEL";
-
-  // Change cursor
-  canvas.style.cursor = isCurrentStep ? "crosshair" : "default";
-}
-
-function escapeHtml(str) {
-  const div = document.createElement("div");
-  div.textContent = str;
-  return div.innerHTML;
-}
-
-// --- Hit Testing ---
-
-function findFrontierAt(x, y) {
-  let closest = null;
-  let closestDist = FRONTIER_HIT_RADIUS;
-  for (const fid of tree.frontierIds) {
-    const node = tree.nodes.get(fid);
-    if (!node) continue;
-    const d = dist(x, y, node.x, node.y);
-    if (d < closestDist) {
-      closestDist = d;
-      closest = node;
-    }
-  }
-  return closest;
-}
-
-function findGreyEdgeAt(x, y) {
-  let closest = null;
-  let closestDist = 5; // tight radius — only direct hits on visible edges
-  for (const edge of tree.edges) {
-    if (edge.state === "solid-chosen") continue;
-    if (edge.greyLevel > 2) continue; // ignore faded edges
-    const from = tree.nodes.get(edge.fromId);
-    const to = tree.nodes.get(edge.toId);
-    if (!from || !to) continue;
-    const d = pointToSegmentDist(x, y, from.x, from.y, to.x, to.y);
-    if (d < closestDist) {
-      closestDist = d;
-      closest = edge;
-    }
-  }
-  return closest;
-}
-
-// --- Step Execution ---
-
-function executeStep1(clickX, clickY) {
-  const canvasW = parseInt(canvas.style.width);
-  const canvasH = parseInt(canvas.style.height);
-  const root = tree.nodes.get(tree.rootId);
-
-  // Enforce minimum distance
-  if (dist(clickX, clickY, root.x, root.y) < MIN_FIRST_CLICK_DIST) {
-    const angle = Math.atan2(clickY - root.y, clickX - root.x);
-    clickX = root.x + Math.cos(angle) * MIN_FIRST_CLICK_DIST;
-    clickY = root.y + Math.sin(angle) * MIN_FIRST_CLICK_DIST;
-  }
-
-  // Create chosen node b
-  const b = createNode(clickX, clickY, root.id, 1, "chosen");
-  b.greyLevel = 0;
-  b.glowing = true;
-  addNode(b);
-
-  const edgeAB = createEdge(root.id, b.id, 1, "solid");
-  edgeAB.state = "solid-chosen";
-  addEdge(edgeAB);
-
-  // Mirrored alternative c
-  const mirrorPos = computeMirror(root, { x: clickX, y: clickY });
-  const mirrorClamped = clampToCanvas(
-    mirrorPos.x,
-    mirrorPos.y,
-    canvasW,
-    canvasH,
-  );
-  const c = createNode(
-    mirrorClamped.x,
-    mirrorClamped.y,
-    root.id,
-    1,
-    "unchosen",
-  );
-  c.greyLevel = 1;
-  addNode(c);
-
-  const edgeAC = createEdge(root.id, c.id, 1, "solid");
-  edgeAC.state = "grey";
-  edgeAC.greyLevel = 1;
-  addEdge(edgeAC);
-
-  // Frontier dots from b (random directions)
-  for (let i = 0; i < 2; i++) {
-    const pos = safeRandomBranch(
-      b,
-      BRANCH_LEN_MIN,
-      BRANCH_LEN_MAX,
-      canvasW,
-      canvasH,
-    );
-    const f = createNode(pos.x, pos.y, b.id, 1, "frontier");
-    f.isFrontier = true;
-    f.glowing = true;
-    addNode(f);
-    tree.frontierIds.add(f.id);
-
-    const edgeBF = createEdge(b.id, f.id, 1, "dotted");
-    addEdge(edgeBF);
-  }
-
-  // Update state
-  root.state = "chosen";
-  root.glowing = false;
-  tree.chosenPath.push(root.id, b.id);
-  tree.activeNodeId = b.id;
-  tree.currentStep = 1;
-
-  // Snapshot + poem
-  const line = nextPoemLine();
-  takeSnapshot(line);
-  addPoemRect(line, 1);
-}
-
-function executeStepN(chosenNode) {
-  const step = tree.currentStep + 1;
-  const canvasW = parseInt(canvas.style.width);
-  const canvasH = parseInt(canvas.style.height);
-
-  // 1. Deprecate greys
-  deprecateGreys();
-
-  // 2. Mark chosen
-  chosenNode.state = "chosen";
-  chosenNode.greyLevel = 0;
-  chosenNode.isFrontier = false;
-  chosenNode.glowing = true;
-
-  // Find and solidify the edge to this node
-  for (const edge of tree.edges) {
-    if (edge.toId === chosenNode.id) {
-      edge.state = "solid-chosen";
-      edge.lineStyle = "solid";
-      edge.greyLevel = 0;
-      break;
-    }
-  }
-
-  // 3. Grey out other frontiers
-  for (const fid of tree.frontierIds) {
-    if (fid === chosenNode.id) continue;
-    const fNode = tree.nodes.get(fid);
-    if (!fNode) continue;
-    fNode.state = "unchosen";
-    fNode.isFrontier = false;
-    fNode.glowing = false;
-    fNode.greyLevel = 1;
-    for (const edge of tree.edges) {
-      if (edge.toId === fid) {
-        edge.state = "grey";
-        edge.greyLevel = 1;
-        break;
-      }
-    }
-  }
-  tree.frontierIds.clear();
-
-  // 4. Remove glow from previous active
-  if (tree.activeNodeId !== null) {
-    const prev = tree.nodes.get(tree.activeNodeId);
-    if (prev) prev.glowing = false;
-  }
-
-  // 5. Spawn grey children from all leaves
-  spawnGreyChildren(step, canvasW, canvasH);
-
-  // 6. New frontier from chosen node
-  for (let i = 0; i < 2; i++) {
-    const pos = safeRandomBranch(
-      chosenNode,
-      BRANCH_LEN_MIN,
-      BRANCH_LEN_MAX,
-      canvasW,
-      canvasH,
-    );
-    const f = createNode(pos.x, pos.y, chosenNode.id, step, "frontier");
-    f.isFrontier = true;
-    f.glowing = true;
-    addNode(f);
-    tree.frontierIds.add(f.id);
-
-    const edge = createEdge(chosenNode.id, f.id, step, "dotted");
-    addEdge(edge);
-  }
-
-  // 7. Update tracking
-  tree.chosenPath.push(chosenNode.id);
-  tree.activeNodeId = chosenNode.id;
-  tree.currentStep = step;
-
-  const line = nextPoemLine();
-  takeSnapshot(line);
-  addPoemRect(line, step);
-}
-
-function executeStepAtPosition(x, y) {
-  const canvasW = parseInt(canvas.style.width);
-  const canvasH = parseInt(canvas.style.height);
-  const step = tree.currentStep + 1;
-
-  // Enforce minimum distance from active node
-  const active = tree.nodes.get(tree.activeNodeId);
-  if (active && dist(x, y, active.x, active.y) < MIN_FIRST_CLICK_DIST) {
-    const angle = Math.atan2(y - active.y, x - active.x);
-    x = active.x + Math.cos(angle) * MIN_FIRST_CLICK_DIST;
-    y = active.y + Math.sin(angle) * MIN_FIRST_CLICK_DIST;
-  }
-
-  // Create node at click position, child of active node
-  const newNode = createNode(x, y, tree.activeNodeId, step, "chosen");
-  newNode.greyLevel = 0;
-  newNode.glowing = true;
-  addNode(newNode);
-
-  const edge = createEdge(tree.activeNodeId, newNode.id, step, "solid");
-  edge.state = "solid-chosen";
-  addEdge(edge);
-
-  // 1. Deprecate greys
-  deprecateGreys();
-
-  // 2. Grey out all frontiers
-  for (const fid of tree.frontierIds) {
-    const fNode = tree.nodes.get(fid);
-    if (!fNode) continue;
-    fNode.state = "unchosen";
-    fNode.isFrontier = false;
-    fNode.glowing = false;
-    fNode.greyLevel = 1;
-    for (const e of tree.edges) {
-      if (e.toId === fid) {
-        e.state = "grey";
-        e.greyLevel = 1;
-        break;
-      }
-    }
-  }
-  tree.frontierIds.clear();
-
-  // 3. Remove glow from previous active
-  if (tree.activeNodeId !== null) {
-    const prev = tree.nodes.get(tree.activeNodeId);
-    if (prev) prev.glowing = false;
-  }
-
-  // 4. Spawn grey children
-  spawnGreyChildren(step, canvasW, canvasH);
-
-  // 5. New frontier from new node
-  for (let i = 0; i < 2; i++) {
-    const pos = safeRandomBranch(
-      newNode,
-      BRANCH_LEN_MIN,
-      BRANCH_LEN_MAX,
-      canvasW,
-      canvasH,
-    );
-    const f = createNode(pos.x, pos.y, newNode.id, step, "frontier");
-    f.isFrontier = true;
-    f.glowing = true;
-    addNode(f);
-    tree.frontierIds.add(f.id);
-
-    const fedge = createEdge(newNode.id, f.id, step, "dotted");
-    addEdge(fedge);
-  }
-
-  // 6. Update tracking
-  tree.chosenPath.push(newNode.id);
-  tree.activeNodeId = newNode.id;
-  tree.currentStep = step;
-
-  const line = nextPoemLine();
-  takeSnapshot(line);
-  addPoemRect(line, step);
-}
-
-// --- Interaction State Machine ---
-
-let interactionState = "INIT"; // INIT | INTERACTIVE | TIME_TRAVEL
-let lastClickTime = 0;
-
-function handleCanvasClick(e) {
-  if (interactionState === "TIME_TRAVEL") return;
-
-  const now = Date.now();
-  if (now - lastClickTime < CLICK_DEBOUNCE_MS) return;
-  lastClickTime = now;
-
-  const rect = canvas.getBoundingClientRect();
-  const x = e.clientX - rect.left;
-  const y = e.clientY - rect.top;
-
-  if (interactionState === "INIT") {
-    // Don't trigger on clicking the root dot itself
-    const root = tree.nodes.get(tree.rootId);
-    if (root && dist(x, y, root.x, root.y) < 10) return;
-
-    executeStep1(x, y);
-    interactionState = "INTERACTIVE";
-    viewingStep = -1;
-    return;
-  }
-
-  if (interactionState === "INTERACTIVE") {
-    // Check frontier hit
-    const hitFrontier = findFrontierAt(x, y);
-    if (hitFrontier) {
-      executeStepN(hitFrontier);
-      viewingStep = -1;
-      return;
+      const phase =
+        (Math.sin((timestamp / this.cfg.pulsePeriodMs) * Math.PI * 2) + 1) / 2;
+      const alpha =
+        this.cfg.pulseAlphaMin +
+        (this.cfg.pulseAlphaMax - this.cfg.pulseAlphaMin) * phase;
+      color = `rgba(0,0,0,${alpha.toFixed(3)})`;
     }
 
-    // Check grey edge hit (shudder)
-    const hitEdge = findGreyEdgeAt(x, y);
-    if (hitEdge) {
-      triggerShudder(hitEdge);
-      return;
-    }
-
-    // Free-form click: create at position
-    executeStepAtPosition(x, y);
-    viewingStep = -1;
+    this.ctx.save();
+    this.ctx.fillStyle = color;
+    this.ctx.beginPath();
+    this.ctx.arc(node.x, node.y, Math.max(0.5, radius), 0, Math.PI * 2);
+    this.ctx.fill();
+    this.ctx.restore();
   }
 }
-
-canvas.addEventListener("click", handleCanvasClick);
-
-// Also handle poem strip scroll via click on individual rects (handled in addPoemRect)
-// Handle scroll-based detection
-let scrollTimeout;
-poemStrip.addEventListener("scroll", () => {
-  clearTimeout(scrollTimeout);
-  scrollTimeout = setTimeout(() => {
-    // Find which rect is closest to center
-    const stripRect = poemStrip.getBoundingClientRect();
-    const centerX = stripRect.left + stripRect.width / 2;
-    let closestStep = tree.currentStep;
-    let closestDist = Infinity;
-
-    poemStrip.querySelectorAll(".poem-rect").forEach((r) => {
-      const rRect = r.getBoundingClientRect();
-      const rCenter = rRect.left + rRect.width / 2;
-      const d = Math.abs(rCenter - centerX);
-      if (d < closestDist) {
-        closestDist = d;
-        closestStep = parseInt(r.dataset.step);
-      }
-    });
-
-    scrollToStep(closestStep);
-  }, 150);
-});
-
-// --- Initialization ---
-
-function init() {
-  loadPoem();
-  resizeCanvas();
-
-  const canvasW = parseInt(canvas.style.width);
-  const canvasH = parseInt(canvas.style.height);
-
-  // Create root at bottom-center
-  const root = createNode(canvasW / 2, canvasH - 60, null, 0, "root");
-  root.glowing = true;
-  addNode(root);
-  tree.rootId = root.id;
-  tree.activeNodeId = root.id;
-
-  // Take initial snapshot
-  takeSnapshot("");
-
-  // Start render loop
-  requestAnimationFrame(render);
-}
-
-window.addEventListener("resize", () => {
-  resizeCanvas();
-});
-
-init();

@@ -5,3 +5,7 @@
 skills/
 skills-lock.json
 node_modules/
+.vercel/
+.env
+.env.local
+.DS_Store

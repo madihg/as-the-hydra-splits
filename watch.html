@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#ffffff" />
+    <title>as the hydra - watch along</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=VT323&family=Space+Grotesk:wght@300..700&family=JetBrains+Mono:wght@200..700&display=block"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="shared/design.css" />
+
+    <style>
+      html,
+      body {
+        min-height: 100%;
+      }
+      body {
+        min-height: 100dvh;
+      }
+
+      .stage {
+        max-width: 36rem;
+        margin: 0 auto;
+        padding: var(--s-6) var(--s-5);
+      }
+
+      .header {
+        font-family: var(--font-mono);
+        font-size: 0.78rem;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--text-secondary);
+        margin-bottom: var(--s-5);
+        line-height: 1.6;
+      }
+      .header .heart {
+        color: var(--text-primary);
+      }
+
+      .tree-frame {
+        width: 100%;
+        aspect-ratio: 1 / 1;
+        border-top: 1px solid var(--border-light);
+        border-bottom: 1px solid var(--border-light);
+        position: relative;
+        margin-bottom: var(--s-6);
+      }
+      #watch-canvas {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        display: block;
+      }
+
+      .lines-list {
+        display: flex;
+        flex-direction: column;
+      }
+      .line-item {
+        border-top: 1px solid var(--border-light);
+        padding: var(--s-4) 0;
+        animation: line-in 600ms ease both;
+      }
+      .line-item:first-child {
+        border-top: 0;
+      }
+      .line-item .voice {
+        font-family: var(--font-mono);
+        font-size: 0.7rem;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--text-hint);
+        margin-bottom: var(--s-2);
+      }
+      .line-item .text {
+        font-family: var(--font-body);
+        font-size: 1.05rem;
+        line-height: 1.5;
+        color: var(--text-primary);
+        white-space: pre-line;
+        margin: 0 0 var(--s-2);
+      }
+      .line-item .direction {
+        font-family: var(--font-mono);
+        font-size: 0.78rem;
+        font-style: italic;
+        color: var(--text-tertiary);
+        line-height: 1.5;
+      }
+      @keyframes line-in {
+        from {
+          opacity: 0;
+        }
+        to {
+          opacity: 1;
+        }
+      }
+
+      .empty {
+        font-family: var(--font-mono);
+        font-size: 0.85rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--text-tertiary);
+        padding: var(--s-5) 0;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="stage">
+      <div class="header" id="header">
+        the cast is complete, watch along
+        <span class="heart">&#9829;</span>
+      </div>
+
+      <div class="tree-frame">
+        <canvas id="watch-canvas"></canvas>
+      </div>
+
+      <section class="lines-list" id="lines-list">
+        <div class="empty">waiting for the first voice</div>
+      </section>
+    </main>
+
+    <script type="module" src="watch.js"></script>
+  </body>
+</html>

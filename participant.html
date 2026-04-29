@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#ffffff" />
+    <title>as the hydra</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=VT323&family=Space+Grotesk:wght@300..700&family=JetBrains+Mono:wght@200..700&display=block"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="shared/design.css" />
+
+    <style>
+      html,
+      body {
+        min-height: 100%;
+      }
+      body {
+        min-height: 100dvh;
+        display: flex;
+        flex-direction: column;
+      }
+
+      .stage {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        padding: var(--s-6) var(--s-5) var(--s-5);
+        max-width: 36rem;
+        margin: 0 auto;
+        width: 100%;
+      }
+
+      .role {
+        font-family: var(--font-mono);
+        font-size: 0.78rem;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--text-tertiary);
+        margin-bottom: var(--s-7);
+        line-height: 1.5;
+      }
+
+      .body {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        gap: var(--s-5);
+      }
+
+      /* -------- waiting -------- */
+      .waiting .copy {
+        font-family: var(--font-body);
+        font-size: 1.1rem;
+        line-height: 1.55;
+        color: var(--text-primary);
+        max-width: 24ch;
+        margin: 0;
+      }
+      .waiting .pulse-line {
+        height: 1px;
+        background: var(--text-primary);
+        margin-top: var(--s-6);
+        max-width: 8rem;
+      }
+      .waiting .soft-hint {
+        margin-top: var(--s-6);
+        font-family: var(--font-mono);
+        font-size: 0.82rem;
+        color: var(--text-tertiary);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        line-height: 1.5;
+        opacity: 0;
+        transition: opacity 1.5s ease;
+      }
+      .waiting .soft-hint.visible {
+        opacity: 1;
+      }
+
+      /* -------- your turn -------- */
+      .turn-line {
+        font-family: var(--font-title);
+        font-weight: 600;
+        font-size: clamp(1.5rem, 6vw, 2.3rem);
+        line-height: 1.25;
+        color: var(--text-primary);
+        white-space: pre-line;
+        max-width: 22ch;
+        margin: 0;
+        letter-spacing: -0.005em;
+      }
+      .turn-direction {
+        font-family: var(--font-mono);
+        font-size: 0.85rem;
+        font-style: italic;
+        color: var(--text-secondary);
+        line-height: 1.6;
+        margin-top: var(--s-4);
+        max-width: 30ch;
+      }
+      .turn-direction::before {
+        content: "/ ";
+        font-style: normal;
+        color: var(--text-tertiary);
+      }
+
+      .footer-cta {
+        padding: var(--s-5) 0 var(--s-6);
+      }
+      .footer-cta .submit-btn {
+        width: 100%;
+      }
+
+      /* -------- spoken -------- */
+      .spoken .turn-line {
+        color: var(--text-tertiary);
+      }
+      .spoken .thanks {
+        font-family: var(--font-mono);
+        font-size: 0.85rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--text-secondary);
+        margin-top: var(--s-5);
+      }
+      .spoken .heart {
+        color: var(--text-primary);
+      }
+
+      /* -------- error/idle -------- */
+      .notice {
+        font-family: var(--font-mono);
+        font-size: 0.92rem;
+        text-transform: lowercase;
+        color: var(--text-secondary);
+        line-height: 1.6;
+        max-width: 32ch;
+      }
+
+      .state {
+        display: none;
+      }
+      .state.active {
+        display: flex;
+        flex-direction: column;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="stage">
+      <div class="role" id="role">connecting</div>
+
+      <div class="body">
+        <section class="state waiting" id="state-waiting">
+          <p class="copy">
+            you are going to be asked to read something. please wait for your
+            turn.
+          </p>
+          <div class="pulse-line pulse"></div>
+          <div class="soft-hint" id="soft-hint">ready when you are</div>
+        </section>
+
+        <section class="state turn" id="state-turn">
+          <p class="turn-line" id="turn-line" aria-live="polite"></p>
+          <p class="turn-direction" id="turn-direction"></p>
+        </section>
+
+        <section class="state spoken" id="state-spoken">
+          <p class="turn-line" id="spoken-line"></p>
+          <p class="thanks">
+            thank you for splitting the hydra
+            <span class="heart">&#9829;</span>
+          </p>
+        </section>
+
+        <section class="state notice-state" id="state-notice">
+          <p class="notice" id="notice-text">no live session right now.</p>
+        </section>
+      </div>
+
+      <div class="footer-cta">
+        <button
+          type="button"
+          class="submit-btn"
+          id="split-btn"
+          style="display: none"
+          aria-label="split"
+        >
+          split
+        </button>
+      </div>
+    </main>
+
+    <script type="module" src="participant.js"></script>
+  </body>
+</html>

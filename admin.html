@@ -1,0 +1,295 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>as the hydra - admin</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=VT323&family=Space+Grotesk:wght@300..700&family=JetBrains+Mono:wght@200..700&display=block"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="shared/design.css" />
+
+    <style>
+      .page {
+        max-width: 920px;
+        margin: 0 auto;
+        padding: var(--s-7) var(--s-5);
+      }
+
+      .doc-head {
+        border-top: 4px solid var(--border);
+        padding-top: var(--s-5);
+        margin-bottom: var(--s-7);
+        display: grid;
+        grid-template-columns: 1fr auto;
+        align-items: end;
+        gap: var(--s-5);
+      }
+      .doc-head .wordmark {
+        font-family: var(--font-display);
+        font-size: clamp(2.4rem, 6vw, 4rem);
+        line-height: 0.9;
+        margin: 0;
+      }
+      .doc-head .meta {
+        font-family: var(--font-mono);
+        font-size: 0.78rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--text-tertiary);
+        text-align: right;
+        line-height: 1.6;
+      }
+
+      section.block {
+        border-top: 1px solid var(--border-light);
+        padding: var(--s-5) 0;
+      }
+      section.block:first-of-type {
+        border-top: 0;
+        padding-top: 0;
+      }
+      section.block h2 {
+        font-family: var(--font-mono);
+        font-size: 0.78rem;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--text-secondary);
+        font-weight: 400;
+        margin: 0 0 var(--s-4);
+      }
+
+      .login-form,
+      .controls,
+      .aphorism-form {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--s-3);
+      }
+      input[type="password"],
+      input[type="text"] {
+        font-family: var(--font-mono);
+        font-size: 0.92rem;
+        padding: 0.6rem 0.8rem;
+        border: 1px solid var(--border);
+        border-radius: 0;
+        background: #fff;
+        color: var(--text-primary);
+        flex: 1;
+        min-width: 14rem;
+      }
+      input:focus-visible {
+        outline: 3px solid var(--hard);
+        outline-offset: 2px;
+      }
+
+      .summary {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: var(--s-4);
+        font-family: var(--font-mono);
+        font-size: 0.85rem;
+      }
+      @media (max-width: 600px) {
+        .summary {
+          grid-template-columns: 1fr;
+        }
+      }
+      .summary .stat {
+        border-top: 1px solid var(--border-light);
+        padding-top: var(--s-3);
+      }
+      .summary .stat .label {
+        font-size: 0.72rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--text-tertiary);
+        margin-bottom: var(--s-2);
+      }
+      .summary .stat .val {
+        font-family: var(--font-title);
+        font-size: 1.4rem;
+        color: var(--text-primary);
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-family: var(--font-mono);
+        font-size: 0.85rem;
+      }
+      th,
+      td {
+        text-align: left;
+        padding: var(--s-3) var(--s-3) var(--s-3) 0;
+        border-top: 1px solid var(--border-light);
+        vertical-align: middle;
+      }
+      th {
+        font-size: 0.7rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--text-tertiary);
+        font-weight: 400;
+        border-top: 0;
+        border-bottom: 1px solid var(--border);
+      }
+      td.actions {
+        text-align: right;
+      }
+
+      .danger {
+        color: #b8006f;
+      }
+
+      .err {
+        font-family: var(--font-mono);
+        font-size: 0.85rem;
+        color: var(--carnation-text);
+        margin-top: var(--s-3);
+        min-height: 1.2em;
+      }
+      .ok {
+        font-family: var(--font-mono);
+        font-size: 0.85rem;
+        color: var(--reinforcement-text);
+        margin-top: var(--s-3);
+        min-height: 1.2em;
+      }
+
+      .hidden {
+        display: none !important;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="page">
+      <header class="doc-head">
+        <h1 class="wordmark">admin</h1>
+        <div class="meta">
+          <span id="auth-status">not authenticated</span><br />
+          <button
+            type="button"
+            class="nav-link"
+            id="logout-btn"
+            style="display: none"
+          >
+            log out
+          </button>
+        </div>
+      </header>
+
+      <!-- login -->
+      <section class="block" id="login-block">
+        <h2>password</h2>
+        <form class="login-form" id="login-form">
+          <input
+            type="password"
+            id="password"
+            placeholder="password"
+            autocomplete="current-password"
+            required
+          />
+          <button type="submit" class="submit-btn">enter</button>
+        </form>
+        <div class="err" id="login-err"></div>
+      </section>
+
+      <!-- authenticated -->
+      <div id="dash" class="hidden">
+        <section class="block">
+          <h2>session</h2>
+          <div class="summary" id="summary">
+            <div class="stat">
+              <div class="label">status</div>
+              <div class="val" id="stat-status">-</div>
+            </div>
+            <div class="stat">
+              <div class="label">voices</div>
+              <div class="val" id="stat-voices">-</div>
+            </div>
+            <div class="stat">
+              <div class="label">started</div>
+              <div class="val" id="stat-started">-</div>
+            </div>
+          </div>
+          <div class="controls" style="margin-top: var(--s-5)">
+            <button type="button" class="submit-btn" id="start-btn">
+              start new session
+            </button>
+            <button type="button" class="nav-link" id="end-btn">
+              end session
+            </button>
+            <button type="button" class="nav-link" id="reveal-btn">
+              reveal next line
+            </button>
+          </div>
+          <div class="err" id="action-err"></div>
+          <div class="ok" id="action-ok"></div>
+        </section>
+
+        <section class="block">
+          <h2>closing aphorism</h2>
+          <form class="aphorism-form" id="aphorism-form">
+            <input
+              type="text"
+              id="aphorism"
+              placeholder="here the hydra splits"
+              maxlength="120"
+            />
+            <button type="submit" class="nav-link">save</button>
+          </form>
+        </section>
+
+        <section class="block">
+          <h2>cast</h2>
+          <table id="cast-table">
+            <thead>
+              <tr>
+                <th scope="col">voice</th>
+                <th scope="col">id</th>
+                <th scope="col">state</th>
+                <th scope="col">joined</th>
+                <th scope="col"><span class="visually-hidden">action</span></th>
+              </tr>
+            </thead>
+            <tbody id="cast-body">
+              <tr>
+                <td colspan="5" style="color: var(--text-tertiary)">
+                  no participants yet
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </section>
+
+        <section class="block">
+          <h2>past sessions</h2>
+          <table id="history-table">
+            <thead>
+              <tr>
+                <th scope="col">started</th>
+                <th scope="col">status</th>
+                <th scope="col">voices</th>
+                <th scope="col">aphorism</th>
+              </tr>
+            </thead>
+            <tbody id="history-body">
+              <tr>
+                <td colspan="4" style="color: var(--text-tertiary)">
+                  no history
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </section>
+      </div>
+    </main>
+
+    <script type="module" src="admin.js"></script>
+  </body>
+</html>

@@ -1,26 +1,67 @@
-# As The Hydra
+# as the hydra
 
-An interactive web piece about the branching nature of desire and the grey weight of unchosen lives.
+a participatory branching, for one room.
 
-A single dot. You click. A path materializes — black, chosen, real. Everything you didn't choose greys out, fading through five shades but never fully disappearing. The tree grows recursively: every leaf — chosen or not — spawns new possibilities, criss-crossing into an organic tangle of what-ifs.
+a host screen displays a living tree and a qr code. anyone in the room scans the qr with their phone and joins the cast. each phone receives one line of a poem and a delivery direction, in turn. when a participant has read aloud, they tap split. the line lands on the host screen, the tree grows a new branch, and the next phone unlocks. extras who scan after the cast is full get a watch-along view.
 
-Poem fragments appear with each step. Scroll back through them to rewind the tree to how it looked at that moment — a version history of wanting.
+at the close, the host screen reads: here the hydra splits.
 
-## Interaction
+## surfaces
 
-- **Click anywhere** on the canvas to grow the tree
-- **Click a frontier dot** to follow a suggested path
-- **Click a greyed line** — it shudders and refuses
-- **Scroll the poem strip** to time-travel through previous states
+- `index.html` lobby and qr-link router
+- `host.html` projector view: lines on the left, tree on the right, qr top-right
+- `participant.html` phone view: waiting → your turn → spoken
+- `watch.html` for late scanners and silent companions
+- `admin.html` password-gated session controls
 
-## Run locally
+## stack
 
-Open `index.html` in a browser. No build step, no dependencies.
+static html / css / vanilla js. supabase realtime for state and sync. vercel for hosting and serverless admin endpoints. no build step, no framework.
 
-## Deploy
+design system lives under `design-system/`. tokens are extracted into `shared/design.css`.
 
-Static site. Connect this repo to [Vercel](https://vercel.com) and it deploys with zero config.
+## environment
+
+server-only env vars (set in vercel project settings):
+
+- `SUPABASE_URL`
+- `SUPABASE_SERVICE_KEY`
+- `ADMIN_PASSWORD_HASH` - sha256 hex of the admin password
+- `ADMIN_JWT_SECRET` - random 32+ byte hex
+
+publishable supabase config sits in `shared/config.js` and is safe to commit.
+
+generate the password hash:
+
+```
+node -e "console.log(require('crypto').createHash('sha256').update('YOUR_PASSWORD').digest('hex'))"
+```
+
+generate the jwt secret:
+
+```
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+```
+
+## run locally
+
+the static surfaces (host, participant, watch, index) work over `python -m http.server` or any static server. the admin api routes need `vercel dev` to run since they are serverless functions.
+
+```
+npm install
+npx vercel dev
+```
+
+then open http://localhost:3000.
+
+## perform
+
+1. open `host.html` on the room screen.
+2. open `admin.html` on a private device, log in, click start new session.
+3. invite the room to scan the qr.
+4. let the room read.
+5. when the cast is complete, end the session and the host screen settles into the closing line.
 
 ---
 
-_Halim Madi, 2025_
+halim madi, 2026

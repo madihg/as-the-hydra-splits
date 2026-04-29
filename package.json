@@ -1,0 +1,22 @@
+{
+  "name": "as-the-hydra",
+  "version": "0.2.0",
+  "description": "as the hydra splits — participatory theater of branching desire",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "format": "prettier --check .",
+    "format:fix": "prettier --write .",
+    "validate": "html-validate \"*.html\""
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.4"
+  },
+  "devDependencies": {
+    "html-validate": "^9.5.5",
+    "prettier": "^3.5.3"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
