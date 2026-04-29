@@ -22,7 +22,10 @@ function renderLine(entry) {
   el.className = "line-item";
   const voice = document.createElement("div");
   voice.className = "voice";
-  voice.textContent = `voice ${entry.position + 1}`;
+  const voiceLabel = entry.line.voice
+    ? `voice ${entry.position + 1} - ${entry.line.voice}`
+    : `voice ${entry.position + 1}`;
+  voice.textContent = voiceLabel;
   const text = document.createElement("p");
   text.className = "text";
   text.textContent = entry.line.text;

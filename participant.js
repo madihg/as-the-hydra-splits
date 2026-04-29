@@ -17,8 +17,10 @@ const sStates = {
   spoken: document.getElementById("state-spoken"),
   notice: document.getElementById("state-notice"),
 };
+const turnVoice = document.getElementById("turn-voice");
 const turnLine = document.getElementById("turn-line");
 const turnDirection = document.getElementById("turn-direction");
+const spokenVoice = document.getElementById("spoken-voice");
 const spokenLine = document.getElementById("spoken-line");
 const splitBtn = document.getElementById("split-btn");
 const noticeText = document.getElementById("notice-text");
@@ -88,6 +90,7 @@ function recompute() {
     // already split, show spoken state
     const line = lineForPosition(session, participant.position);
     if (line) {
+      spokenVoice.textContent = line.voice || "";
       spokenLine.textContent = line.text;
       setRole(`voice ${participant.position + 1} of ${total}`);
       showState("spoken");
@@ -104,6 +107,7 @@ function recompute() {
   // already split
   if (participant.has_split) {
     const line = lineForPosition(session, participant.position);
+    spokenVoice.textContent = line?.voice || "";
     spokenLine.textContent = line?.text || "";
     setRole(`voice ${participant.position + 1} of ${total}`);
     showState("spoken");
@@ -117,6 +121,7 @@ function recompute() {
     // your turn
     const line = lineForPosition(session, participant.position);
     if (!line) return;
+    turnVoice.textContent = line.voice || "";
     turnLine.textContent = line.text;
     turnDirection.textContent = line.direction;
     if (sStates.turn.classList.contains("active") === false) {
