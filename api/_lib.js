@@ -154,55 +154,69 @@ export const LINES = [
   },
   {
     id: 5,
-    voice: "voice of three in one body",
-    text: '"hey\nmeasure your distance from catastrophe\nand, also, you might have to forego desire"',
+    voice: "voice of the hailing cry",
+    text: "hey",
     direction:
-      "read the below as if three people are sharing your body - the first hailing the room, the second flat and clinical, the third tender and almost breaking",
+      "read the below as a hailing cry, like you're trying to get someone's attention from far away",
   },
   {
     id: 6,
+    voice: "voice of the public announcement",
+    text: "remember to measure your distance from catastrophe",
+    direction:
+      "read the below flat and clinical, the way a public service announcement gets read aloud",
+  },
+  {
+    id: 7,
+    voice: "voice of the tender almost-break",
+    text: "and, also, you might have to forego desire",
+    direction:
+      "read the below tender and almost breaking, like you wish you didn't have to say it",
+  },
+  {
+    id: 8,
     voice: "voice of first remembering",
     text: "i wonder:",
     direction:
       "read the below as if you're remembering it for the first time, then sit in a long silence",
   },
   {
-    id: 7,
+    id: 9,
     voice: "voice of the unguarded gaze upward",
     text: "did we fall from the hand of possibility?",
     direction:
       "read the below with a big voice, eyes up, like asking the ceiling",
   },
   {
-    id: 8,
+    id: 10,
     voice: "voice of pronouncement and doubt",
     text: "every branch stared down into otherness",
     direction:
       "read the below like a pronouncement, then let your face show that you don't quite believe what you just said",
   },
   {
-    id: 9,
+    id: 11,
     voice: "voice of the dry-eyed, then grieving",
     text: "my future - i mean my culture - is composting",
     direction:
       "read the below dry and factual, then let a flicker of grief land on the word 'composting'",
   },
   {
-    id: 10,
+    id: 12,
     voice: "voice of direct address",
     text: "asking: how will *you* be reborn?",
     direction:
       "read the below straight at one person in the room, eyes locked, almost confrontational",
   },
   {
-    id: 11,
+    id: 13,
     voice: "voice of the kitchen table after the guests",
     text: "now that heartbreak is your shared art form",
     direction:
       "read the below quietly, the way you'd speak at the kitchen table once the guests have gone",
   },
   {
-    id: 12,
+    id: 14,
     voice: "voice of slow tenderness, almost sung",
     text: "and longing has crow's feet and graying hair",
     direction:
