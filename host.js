@@ -3,8 +3,11 @@ import { Tree } from "./tree.js";
 
 const linesCol = document.getElementById("lines-col");
 const linesEmpty = document.getElementById("lines-empty");
-const qrPocket = document.getElementById("qr-pocket");
+const qrToggle = document.getElementById("qr-toggle");
 const qrRemaining = document.getElementById("qr-remaining");
+const qrOverlay = document.getElementById("qr-overlay");
+const qrCloseBtn = document.getElementById("qr-close");
+const qrUrlEl = document.getElementById("qr-url");
 const idleCard = document.getElementById("idle-card");
 const closing = document.getElementById("closing");
 const metaStatus = document.getElementById("meta-status");
@@ -17,7 +20,8 @@ tree.init();
 
 let session = null;
 let lastRevealedLen = 0;
-let qrInstance = null;
+let qrBigInstance = null;
+let qrUrl = null;
 let realtimeChannel = null;
 
 function fmtStamp(d) {
@@ -31,22 +35,44 @@ function fmtStamp(d) {
   });
 }
 
-function renderQR(sessionId) {
-  if (qrInstance) {
-    qrInstance.clear();
-    qrInstance = null;
-    document.getElementById("qr").innerHTML = "";
-  }
-  const url = `${window.location.origin}/participant.html?session=${sessionId}`;
-  qrInstance = new QRCode(document.getElementById("qr"), {
-    text: url,
-    width: 168,
-    height: 168,
+function setQrUrl(sessionId) {
+  qrUrl = `${window.location.origin}/participant.html?session=${sessionId}`;
+  qrUrlEl.textContent = qrUrl;
+}
+
+function openQrOverlay() {
+  if (!qrUrl) return;
+  // render a large qr sized for the room - participants need to see it from across a venue
+  const bigSize = Math.min(window.innerWidth, window.innerHeight) * 0.78;
+  document.getElementById("qr-big").innerHTML = "";
+  qrBigInstance = new QRCode(document.getElementById("qr-big"), {
+    text: qrUrl,
+    width: Math.round(bigSize),
+    height: Math.round(bigSize),
     colorDark: "#000000",
     colorLight: "#ffffff",
-    correctLevel: QRCode.CorrectLevel.M,
+    correctLevel: QRCode.CorrectLevel.H,
   });
+  qrOverlay.classList.add("visible");
 }
+
+function closeQrOverlay() {
+  qrOverlay.classList.remove("visible");
+}
+
+qrToggle.addEventListener("click", openQrOverlay);
+qrOverlay.addEventListener("click", (e) => {
+  // close on click anywhere except the close button (which has its own handler)
+  if (e.target === qrCloseBtn) return;
+  closeQrOverlay();
+});
+qrCloseBtn.addEventListener("click", (e) => {
+  e.stopPropagation();
+  closeQrOverlay();
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") closeQrOverlay();
+});
 
 function renderLine(entry) {
   if (linesEmpty && linesEmpty.parentNode) {
@@ -88,9 +114,10 @@ function applyState(s) {
   if (!s || s.status === "idle" || s.status === "archived") {
     metaStatus.textContent = "no session";
     metaStamp.textContent = "";
-    qrPocket.classList.add("hidden");
+    qrToggle.classList.add("hidden");
     idleCard.style.display = "block";
     closing.classList.remove("visible");
+    closeQrOverlay();
     return;
   }
 
@@ -99,12 +126,13 @@ function applyState(s) {
 
   if (s.status === "live") {
     metaStatus.textContent = "live";
-    qrPocket.classList.remove("hidden");
+    qrToggle.classList.remove("hidden");
     closing.classList.remove("visible");
-    if (!qrInstance) renderQR(s.id);
+    if (!qrUrl) setQrUrl(s.id);
   } else if (s.status === "complete") {
     metaStatus.textContent = "complete";
-    qrPocket.classList.add("hidden");
+    qrToggle.classList.add("hidden");
+    closeQrOverlay();
     if (s.closing_aphorism) closing.textContent = s.closing_aphorism;
     closing.classList.add("visible");
   }
@@ -119,6 +147,7 @@ async function bootstrap() {
     // fresh tree for the live session - reset before applying revealed
     tree.reset();
     lastRevealedLen = 0;
+    qrUrl = null;
     linesCol.innerHTML =
       '<div class="lines-empty" id="lines-empty">waiting for the first voice</div>';
     applyState(live);
@@ -146,6 +175,7 @@ function subscribe() {
         if (isNewLive) {
           tree.reset();
           lastRevealedLen = 0;
+          qrUrl = null;
           linesCol.innerHTML =
             '<div class="lines-empty" id="lines-empty">waiting for the first voice</div>';
           applyState(row);
